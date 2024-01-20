@@ -58,10 +58,33 @@ export default {
 			console.log(fromDate);
 			console.log(toDate);
 			const stmt = env.DB.prepare('SELECT COUNT(*) AS NUM, ClientIP FROM http_requests_client WHERE EdgeStartTimestamp BETWEEN ?1 AND ?2 GROUP BY ClientIP ORDER BY NUM DESC;').bind(fromDate, toDate);
-			console.log(stmt);
-			const { results } = await stmt.all();
-			console.log(JSON.stringify(results))
-			return new Response(JSON.stringify(results), {
+			const stmt2 = env.DB.prepare('SELECT EdgeStartTimestamp, EdgeResponseStatus, COUNT(*) AS NUM FROM http_requests_edge WHERE EdgeResponseStatus IS NOT NULL AND EdgeStartTimestamp BETWEEN ?1 AND ?2  GROUP BY EdgeStartTimestamp, EdgeResponseStatus ORDER BY EdgeStartTimestamp ASC;').bind(fromDate, toDate);
+			const stmt3 = env.DB.prepare('SELECT ORIGIN.EdgeStartTimestamp AS EdgeStartTimestamp1, ORIGIN.OriginIP As OriginIP, (strftime(\'%s\', EDGE.EdgeEndTimestamp) - strftime(\'%s“\', EDGE.EdgeStartTimestamp)) AS DurationInSeconds  FROM http_requests_origin AS ORIGIN JOIN http_requests_edge AS EDGE ON  ORIGIN.EdgeStartTimestamp = EDGE.EdgeStartTimestamp WHERE EdgeStartTimestamp1 BETWEEN ?1 AND ?2 AND DurationInSeconds > 0 AND OriginIP != \'\' GROUP BY EdgeStartTimestamp1, OriginIP ORDER BY EdgeStartTimestamp1 ASC;').bind(fromDate, toDate);
+
+			//const stmt3 = env.DB.prepare('SELECT ORIGIN.EdgeStartTimestamp AS EdgeStartTimestamp, ORIGIN.OriginIP As EdgeResponseStatus, (strftime(\'%s\', EDGE.EdgeEndTimestamp) - strftime(\'%s“\', EDGE.EdgeStartTimestamp)) AS NUM FROM http_requests_origin AS ORIGIN JOIN http_requests_edge AS EDGE ON  ORIGIN.EdgeStartTimestamp = EDGE.EdgeStartTimestamp WHERE ORIGIN.EdgeStartTimestamp BETWEEN ?1 AND ?2 AND DurationInSeconds > 0 GROUP BY EdgeTime, originIP ORDER BY ORIGIN.EdgeStartTimestamp ASC;').bind(fromDate, toDate);
+			//console.log(`stmt: ${JSON.stringify(stmt)}`);
+			//console.log(`stmt: ${JSON.stringify(stmt2)}`);
+			console.log(`stmt: ${JSON.stringify(stmt3)}`);
+			const rows = await env.DB.batch([
+				stmt,
+				stmt2,
+				stmt3
+			]);
+
+			//const { results } = await stmt.all();
+			//console.log(`row0: ${JSON.stringify(rows[0].results)}`)
+			//console.log(`row1: ${JSON.stringify(rows[1].results)}`)
+			console.log(`row3: ${JSON.stringify(rows[2].results)}`)
+			//console.log(`row: ${JSON.stringify(rows)}`)
+
+			const newResult = rows.map(item => {
+				return item.results;
+				})
+
+
+			console.log(`new: ${JSON.stringify(newResult)}`);
+			
+			return new Response(JSON.stringify(newResult), {
 			headers: {
 				"content-type": "application/json;charset=UTF-8",
 				...corsHeaders,
@@ -71,8 +94,6 @@ export default {
 			return new Response("The request was a GET");
 		  }
 
-
-		
 	},
 };
 
